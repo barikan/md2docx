@@ -27,6 +27,10 @@ pub struct Config {
     #[serde(default)]
     pub numbering: NumberingConfig,
     #[serde(default)]
+    pub captions: CaptionConfig,
+    #[serde(default)]
+    pub table: TableConfig,
+    #[serde(default)]
     pub line_numbers: LineNumberConfig,
     #[serde(default)]
     pub code_block: CodeBlockConfig,
@@ -251,6 +255,37 @@ fn default_indent_heading6_hanging() -> i32 {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CaptionConfig {
+    #[serde(default = "default_caption_visible")]
+    pub table: bool,
+    #[serde(default = "default_caption_visible")]
+    pub figure: bool,
+}
+
+/// 通常の表の外側余白（twip）。
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+pub struct TableConfig {
+    pub margin_top: u32,
+    pub margin_bottom: u32,
+    pub margin_left: i32,
+    pub margin_right: i32,
+}
+
+fn default_caption_visible() -> bool {
+    true
+}
+
+impl Default for CaptionConfig {
+    fn default() -> Self {
+        Self {
+            table: default_caption_visible(),
+            figure: default_caption_visible(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct NumberingConfig {
     #[serde(default = "default_figure_format")]
     pub figure_format: String,
@@ -465,6 +500,36 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_margins_default_to_zero() {
+        for source in ["", "[table]\nmargin_left = 300"] {
+            let config: Config = toml::from_str(source).unwrap();
+            assert_eq!(config.table.margin_top, 0);
+            assert_eq!(config.table.margin_bottom, 0);
+            assert_eq!(config.table.margin_right, 0);
+            assert_eq!(
+                config.table.margin_left,
+                if source.is_empty() { 0 } else { 300 }
+            );
+        }
+    }
+
+    #[test]
+    fn captions_default_to_visible_and_can_be_disabled_independently() {
+        assert!(Config::default().captions.table);
+        assert!(Config::default().captions.figure);
+        for (source, table, figure) in [
+            ("", true, true),
+            ("[captions]\ntable = false", false, true),
+            ("[captions]\nfigure = false", true, false),
+            ("[captions]\ntable = false\nfigure = false", false, false),
+        ] {
+            let config: Config = toml::from_str(source).unwrap();
+            assert_eq!(config.captions.table, table);
+            assert_eq!(config.captions.figure, figure);
+        }
+    }
 
     #[test]
     fn code_block_options_are_optional() {

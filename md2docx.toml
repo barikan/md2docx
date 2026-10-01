@@ -58,6 +58,17 @@ level0 = "●"
 level1 = "■"
 level2 = "▲"
 
+[table]
+# 表の外側余白 (twip)
+margin_top = 120
+margin_bottom = 120
+margin_right = 0
+margin_left = 360
+
+[captions]
+table = false
+figure = false
+
 [numbering]
 figure_format = "sequential"
 table_format = "sequential"

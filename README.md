@@ -149,6 +149,17 @@ level0 = "●"
 level1 = "■"
 level2 = "▲"
 
+[table]
+# 表の外側余白 (twip)
+margin_top = 0
+margin_bottom = 0
+margin_left = 0
+margin_right = 0
+
+[captions]
+table = true
+figure = true
+
 [numbering]
 figure_format = "sequential"
 table_format = "sequential"
@@ -168,6 +179,10 @@ pageセクションではページサイズと余白をtwip単位で設定する
 indentセクションのtwipはWordの内部単位で、1twipは1/20pt。210twipがおおむね全角1文字分にあたる。body_left_charsはWord独自の文字数単位で、100が1文字に相当する。見出し1〜6の左インデントとぶら下げインデントも個別に変更できる。
 
 bulletセクションで箇条書きの各レベルに使う行頭文字を変更できる。
+
+tableセクションでは通常の表の外側余白をtwip単位で指定する（240twip = 12pt）。`margin_top` / `margin_bottom` は表全体の前後、`margin_left` / `margin_right` は本文領域の端と表の外枠の間の余白。表名を表示する場合、上余白は表名の前に適用し、表名は左右余白を除いた幅の中央に配置する。すべて省略時は `0`。セル内パディングは上下左右80twip（4pt）。
+
+captionsセクションでは表名・図名（番号を含むキャプション）の表示を個別に切り替えられる。`table = false` で表名、`figure = false` で図名を非表示にする。図名を非表示にすると画像のaltテキストを使った説明文も表示しない。表・画像そのものは表示される。省略時はどちらも `true`（表示）。
 
 numberingセクションで図番号・表番号の採番形式を指定する。`"sequential"`は連番（図1, 図2, 図3…）、`"chapter"`は章番号付き（図1.1, 図1.2, 図2.1…）になる。章番号はH1（見出し1）の番号を基準とし、H1が変わるとリセットされる。H2以下の変化ではリセットされない。
 

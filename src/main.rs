@@ -81,6 +81,16 @@ use crate::config::Config;
   level1 = \"■\"                # 箇条書きレベル1
   level2 = \"▲\"                # 箇条書きレベル2
 
+  [table]                      # 通常の表の外側余白 (twip)
+  margin_top = 0               # 表名を含む表全体の上余白
+  margin_bottom = 0            # 表の下余白
+  margin_left = 0              # 表の左余白
+  margin_right = 0             # 表の右余白
+
+  [captions]
+  table = true                 # 表名（番号を含む）を表示
+  figure = true                # 図名（番号・説明文を含む）を表示
+
   [numbering]
   figure_format = \"sequential\"   # 図番号の形式（sequential / chapter）
   table_format  = \"sequential\"   # 表番号の形式（sequential / chapter）

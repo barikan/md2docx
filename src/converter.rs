@@ -453,59 +453,84 @@ impl<'a> ConvertContext<'a> {
         rows: &[Vec<Vec<Inline>>],
         alignments: &[crate::ir::Alignment],
     ) -> Docx {
-        // 表番号キャプション
-        let caption_fonts = RunFonts::new()
-            .ascii(&self.config.fonts.heading_en)
-            .hi_ansi(&self.config.fonts.heading_en)
-            .east_asia(&self.config.fonts.heading_ja)
-            .cs(&self.config.fonts.heading_en);
-        let body_size = styles::pt_to_half_point(self.config.sizes.body);
-
-        let table_number = self.next_table_number();
-
-        let caption_para = match self.config.numbering.table_format.as_str() {
-            "chapter" => {
-                // 章番号モード: "表X.Y" をプレーンテキストで生成
-                let label_run = Run::new()
-                    .add_text(format!("表{}", table_number))
-                    .size(body_size)
-                    .bold()
-                    .fonts(caption_fonts);
-                Paragraph::new()
-                    .add_run(label_run)
-                    .align(AlignmentType::Center)
-            }
-            _ => {
-                // 連番モード: Word SEQ フィールドを使用
-                let label_run = Run::new()
-                    .add_text("表")
-                    .size(body_size)
-                    .bold()
-                    .fonts(caption_fonts.clone());
-                let seq_run = Run::new()
-                    .add_field_char(FieldCharType::Begin, true)
-                    .add_instr_text(InstrText::Unsupported(" SEQ Table \\* ARABIC ".to_string()))
-                    .add_field_char(FieldCharType::Separate, false)
-                    .add_text(&table_number)
-                    .add_field_char(FieldCharType::End, false)
-                    .size(body_size)
-                    .bold()
-                    .fonts(caption_fonts);
-                Paragraph::new()
-                    .add_run(label_run)
-                    .add_run(seq_run)
-                    .align(AlignmentType::Center)
-            }
-        };
-
-        let docx = docx.add_paragraph(caption_para);
         let column_count = headers
             .len()
             .max(rows.iter().map(|row| row.len()).max().unwrap_or(0));
         if column_count == 0 {
             return docx;
         }
-        let column_widths = build_table_grid(column_count, &self.config.page);
+        let margins = &self.config.table;
+        let width = (i64::from(body_width_twip(&self.config.page))
+            - i64::from(margins.margin_left)
+            - i64::from(margins.margin_right))
+        .max(column_count as i64) as usize;
+        let docx = if margins.margin_top > 0 {
+            docx.add_paragraph(outer_margin_spacer(margins.margin_top).keep_next(true))
+        } else {
+            docx
+        };
+        let docx = if self.config.captions.table {
+            // 表番号キャプション
+            let caption_fonts = RunFonts::new()
+                .ascii(&self.config.fonts.heading_en)
+                .hi_ansi(&self.config.fonts.heading_en)
+                .east_asia(&self.config.fonts.heading_ja)
+                .cs(&self.config.fonts.heading_en);
+            let body_size = styles::pt_to_half_point(self.config.sizes.body);
+
+            let table_number = self.next_table_number();
+
+            let caption_para = match self.config.numbering.table_format.as_str() {
+                "chapter" => {
+                    // 章番号モード: "表X.Y" をプレーンテキストで生成
+                    let label_run = Run::new()
+                        .add_text(format!("表{}", table_number))
+                        .size(body_size)
+                        .bold()
+                        .fonts(caption_fonts);
+                    Paragraph::new()
+                        .add_run(label_run)
+                        .align(AlignmentType::Center)
+                }
+                _ => {
+                    // 連番モード: Word SEQ フィールドを使用
+                    let label_run = Run::new()
+                        .add_text("表")
+                        .size(body_size)
+                        .bold()
+                        .fonts(caption_fonts.clone());
+                    let seq_run = Run::new()
+                        .add_field_char(FieldCharType::Begin, true)
+                        .add_instr_text(InstrText::Unsupported(
+                            " SEQ Table \\* ARABIC ".to_string(),
+                        ))
+                        .add_field_char(FieldCharType::Separate, false)
+                        .add_text(&table_number)
+                        .add_field_char(FieldCharType::End, false)
+                        .size(body_size)
+                        .bold()
+                        .fonts(caption_fonts);
+                    Paragraph::new()
+                        .add_run(label_run)
+                        .add_run(seq_run)
+                        .align(AlignmentType::Center)
+                }
+            };
+
+            docx.add_paragraph(
+                caption_para
+                    .indent(
+                        Some(self.config.table.margin_left),
+                        None,
+                        Some(self.config.table.margin_right),
+                        None,
+                    )
+                    .keep_next(true),
+            )
+        } else {
+            docx
+        };
+        let column_widths = build_table_grid(column_count, width);
 
         // ヘッダー行
         let header_cells: Vec<TableCell> = headers
@@ -561,7 +586,7 @@ impl<'a> ConvertContext<'a> {
             table_rows.push(TableRow::new(cells).cant_split());
         }
 
-        let table = Table::new(table_rows)
+        let mut table = Table::new(table_rows)
             .align(TableAlignmentType::Center)
             .layout(TableLayoutType::Fixed)
             .width(TABLE_WIDTH_PCT, WidthType::Pct)
@@ -572,7 +597,19 @@ impl<'a> ConvertContext<'a> {
                 TABLE_CELL_PADDING_TWIP,
                 TABLE_CELL_PADDING_TWIP,
             ));
-        docx.add_table(table)
+        let margins = &self.config.table;
+        if margins.margin_left != 0 || margins.margin_right != 0 {
+            table = table
+                .align(TableAlignmentType::Left)
+                .indent(margins.margin_left)
+                .width(width, WidthType::Dxa);
+        }
+        let docx = docx.add_table(table);
+        if margins.margin_bottom > 0 {
+            docx.add_paragraph(outer_margin_spacer(margins.margin_bottom))
+        } else {
+            docx
+        }
     }
 
     fn convert_code_block(&self, docx: Docx, lang: Option<&str>, code: &str) -> Docx {
@@ -633,7 +670,7 @@ impl<'a> ConvertContext<'a> {
         }
         if use_border {
             if margins.margin_top > 0 {
-                d = d.add_paragraph(code_block_spacer(margins.margin_top).keep_next(true));
+                d = d.add_paragraph(outer_margin_spacer(margins.margin_top).keep_next(true));
             }
             let table = Table::new(vec![TableRow::new(vec![cell])])
                 .align(TableAlignmentType::Left)
@@ -650,7 +687,7 @@ impl<'a> ConvertContext<'a> {
                 .set_borders(code_block_borders());
             d = d.add_table(table);
             if margins.margin_bottom > 0 {
-                d = d.add_paragraph(code_block_spacer(margins.margin_bottom));
+                d = d.add_paragraph(outer_margin_spacer(margins.margin_bottom));
             }
         }
         d
@@ -692,6 +729,10 @@ impl<'a> ConvertContext<'a> {
             .align(AlignmentType::Center);
 
         let docx = docx.add_paragraph(image_para);
+
+        if !self.config.captions.figure {
+            return docx;
+        }
 
         // 図番号キャプション
         let caption_fonts = RunFonts::new()
@@ -781,10 +822,10 @@ fn body_width_twip(page: &PageConfig) -> u32 {
         .saturating_sub(page.margin_right.max(0) as u32)
 }
 
-fn build_table_grid(column_count: usize, page: &PageConfig) -> Vec<usize> {
-    let body_width = body_width_twip(page).max(column_count as u32);
-    let base = body_width as usize / column_count;
-    let remainder = body_width as usize % column_count;
+fn build_table_grid(column_count: usize, width: usize) -> Vec<usize> {
+    let width = width.max(column_count);
+    let base = width / column_count;
+    let remainder = width % column_count;
 
     (0..column_count)
         .map(|index| base + usize::from(index < remainder))
@@ -842,7 +883,7 @@ fn is_japanese_char(c: char) -> bool {
 }
 
 /// 表の外側に指定した高さの空白を設ける。段落の既定行高は使用しない。
-fn code_block_spacer(height: u32) -> Paragraph {
+fn outer_margin_spacer(height: u32) -> Paragraph {
     Paragraph::new()
         .add_run(Run::new().size(2))
         .snap_to_grid(false)
@@ -869,6 +910,98 @@ fn code_block_borders() -> TableBorders {
 mod tests {
     use super::*;
     use docx_rs::{DocumentChild, HyperlinkData, ParagraphChild, RunChild};
+
+    #[test]
+    fn applies_outer_table_margins_with_or_without_caption() {
+        let mut config: Config = toml::from_str(
+            r#"
+            [table]
+            margin_top = 240
+            margin_bottom = 120
+            margin_left = 300
+            margin_right = 500
+            [page]
+            width = 8001
+            margin_left = 1000
+            margin_right = 1000
+        "#,
+        )
+        .unwrap();
+        let blocks =
+            crate::parser::parse_markdown("| A | B |\n|---|---|\n| C | D |", false).unwrap();
+        for caption in [false, true] {
+            config.captions.table = caption;
+            let docx = convert_to_docx(&blocks, &config, Path::new(".")).unwrap();
+            let children = &docx.document.children;
+            assert_eq!(children.len(), 3 + usize::from(caption));
+            for (index, height) in [(0, 240), (children.len() - 1, 120)] {
+                let DocumentChild::Paragraph(p) = &children[index] else {
+                    panic!("expected spacer")
+                };
+                let xml = String::from_utf8(p.build()).unwrap();
+                assert!(xml.contains(&format!(r#"w:line="{height}""#)));
+                assert!(xml.contains(r#"w:lineRule="exact""#));
+            }
+            if caption {
+                let DocumentChild::Paragraph(p) = &children[1] else {
+                    panic!("expected caption")
+                };
+                assert_eq!(p.property.indent.as_ref().unwrap().start, Some(300));
+                assert_eq!(p.property.indent.as_ref().unwrap().end, Some(500));
+            }
+            let DocumentChild::Table(table) = &children[1 + usize::from(caption)] else {
+                panic!("expected table")
+            };
+            let xml = String::from_utf8(table.build()).unwrap();
+            assert!(xml.contains(r#"<w:tblW w:w="5201" w:type="dxa" />"#));
+            assert!(xml.contains(r#"<w:tblInd w:w="300" w:type="dxa" />"#));
+            for width in [2601, 2600] {
+                assert!(xml.contains(&format!(r#"<w:gridCol w:w="{width}""#)));
+                assert!(xml.contains(&format!(r#"<w:tcW w:w="{width}""#)));
+            }
+            assert!(xml.contains(r#"<w:tblCellMar><w:top w:w="80""#));
+        }
+    }
+
+    #[test]
+    fn toggles_table_and_figure_captions_without_removing_content() {
+        let blocks = vec![
+            Block::Table {
+                headers: vec![vec![Inline::Text("Header".into())]],
+                rows: vec![vec![vec![Inline::Text("Body".into())]]],
+                alignments: vec![],
+            },
+            Block::Image {
+                alt: "Figure description".into(),
+                path: "examples/test.png".into(),
+            },
+        ];
+        for format in ["sequential", "chapter"] {
+            for (table, figure) in [(true, true), (false, true), (true, false), (false, false)] {
+                let mut config = Config::default();
+                config.numbering.table_format = format.into();
+                config.numbering.figure_format = format.into();
+                config.captions.table = table;
+                config.captions.figure = figure;
+                let docx = convert_to_docx(&blocks, &config, Path::new(env!("CARGO_MANIFEST_DIR")))
+                    .unwrap();
+                assert_eq!(
+                    docx.document.children.len(),
+                    2 + usize::from(table) + usize::from(figure)
+                );
+                let xml = String::from_utf8(docx.document.build()).unwrap();
+                assert!(xml.contains("<w:tbl>"));
+                assert!(xml.contains(">Header</w:t>"));
+                assert!(xml.contains(">Body</w:t>"));
+                assert!(xml.contains("<w:drawing>"));
+                assert_eq!(xml.contains(">表"), table);
+                assert_eq!(xml.contains(">図"), figure);
+                assert_eq!(xml.contains("Figure description"), figure);
+                assert_eq!(xml.contains("SEQ Table"), table && format == "sequential");
+                assert_eq!(xml.contains("SEQ Figure"), figure && format == "sequential");
+            }
+        }
+    }
 
     #[test]
     fn applies_code_block_fonts_and_margins_with_or_without_borders() {
