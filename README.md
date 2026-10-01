@@ -86,7 +86,7 @@ mdd document.md -o output.docx -c mdd.toml
 
 ## 設定ファイル
 
-TOML形式でフォントやサイズをカスタマイズできる。すべての項目は省略可能で、省略した項目にはデフォルト値が入る。全項目とデフォルト値はmdd --helpで確認できる。
+TOML形式でフォントやサイズをカスタマイズできる。すべての項目は省略可能で、省略した項目にはデフォルト値が入る。以下は全項目とデフォルト値。値を省略する任意項目は、設定例をコメントで示す。`mdd --help`でも確認できる。リポジトリの`md2docx.toml`はカスタマイズ例で、デフォルト値とは異なる。
 
 ```toml
 [fonts]
@@ -164,10 +164,20 @@ figure = true
 figure_format = "sequential"
 table_format = "sequential"
 
+[line_numbers]
+enabled = false
+count_by = 1
+start = 1
+restart = "newPage"
+
+[heading]
+heading_shift = false
+title_size = 18.0
+
 [equal]
-enabled = true
-font_size = 18.0
-background_color = "#FFFF00"
+enabled = false
+# font_size = 18.0              # 設定例。省略時は周囲と同じサイズ
+# background_color = "#FFFF00" # 設定例。省略時は背景色なし
 ```
 
 fontsセクションでは本文・見出し・コードブロックそれぞれの日本語フォント、英語フォントを指定する。sizesセクションで本文、表、各レベルの見出し（H1〜H5）のフォントサイズをpt単位で設定する。
@@ -184,7 +194,11 @@ tableセクションでは通常の表の外側余白をtwip単位で指定す�
 
 captionsセクションでは表名・図名（番号を含むキャプション）の表示を個別に切り替えられる。`table = false` で表名、`figure = false` で図名を非表示にする。図名を非表示にすると画像のaltテキストを使った説明文も表示しない。表・画像そのものは表示される。省略時はどちらも `true`（表示）。
 
-numberingセクションで図番号・表番号の採番形式を指定する。`"sequential"`は連番（図1, 図2, 図3…）、`"chapter"`は章番号付き（図1.1, 図1.2, 図2.1…）になる。章番号はH1（見出し1）の番号を基準とし、H1が変わるとリセットされる。H2以下の変化ではリセットされない。
+numberingセクションで図番号・表番号の採番形式を指定する。`"sequential"`は連番（図1, 図2, 図3…）、`"chapter"`は章番号付き（図1.1, 図1.2, 図2.1…）になる。章番号はWordの見出し1の番号を基準とし、見出し1が変わるとリセットされる。見出し2以下の変化ではリセットされない。
+
+line_numbersセクションでは文書の行番号を設定する。`enabled = true`で有効になり、`count_by`は何行ごとに番号を表示するか、`start`は開始番号を指定する。`restart`は`"newPage"`（ページごと）、`"newSection"`（セクションごと）、`"continuous"`（文書全体で連続）から選ぶ。
+
+headingセクションの`heading_shift = true`で、Markdownの`#`を番号なし・中央揃えの表題、`##`を見出し1、`###`を見出し2として扱う。`title_size`はこの表題の文字サイズ（pt）で、既定値は18.0。シフト時の章番号は`##`を基準とする。
 
 equalセクションで`==text==`の文字装飾を指定する。`enabled = true`の場合のみ記法を有効にする。`font_size`を省略すると周囲と同じ文字サイズになり、`background_color`を省略すると背景色を付けない。背景色は`"#FFFF00"`または`"FFFF00"`のようなRGB形式で指定する。equalセクション自体を省略した場合、文字装飾は無効になる。
 

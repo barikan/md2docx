@@ -27,7 +27,7 @@ use crate::config::Config;
   mdd document.md -o out.docx -c my.toml   両方指定
 
 設定ファイル (TOML):
-  省略時はデフォルト値が使われます。全項目省略可能。
+  以下はデフォルト値です。全項目省略可能。任意項目の設定例はコメントで表示。
 
   [fonts]
   body_ja    = \"游明朝\"        # 本文の日本語フォント
@@ -105,13 +105,17 @@ use crate::config::Config;
   border = false                # コードブロックを1行1列の表で囲む（true / false）
   margin_top = 0                # ブロックの上余白 (twip)
   margin_bottom = 0             # ブロックの下余白 (twip)
-  margin_right = 0              # 全行の右余白 (twip)
-  margin_left = 0               # 全行の左余白 (twip)
+  margin_right = 0              # ブロックの右外側余白 (twip)
+  margin_left = 0               # ブロックの左外側余白 (twip)
+
+  [heading]
+  heading_shift = false        # # を表題、## を見出し1、### を見出し2…にする
+  title_size = 18.0            # 表題の文字サイズ (pt、heading_shift = true 時)
 
   [equal]
   enabled = false               # ==text== による文字装飾を有効にする
-  font_size = 18.0              # 文字サイズ (pt、省略時は周囲と同じ)
-  background_color = \"#FFFF00\" # 背景色 (省略時は背景色なし)
+  # font_size = 18.0            # 設定例 (pt)。省略時は周囲と同じサイズ
+  # background_color = \"#FFFF00\" # 設定例。省略時は背景色なし
 
 対応する Markdown 要素:
   見出し (H1-H5, 自動採番)    段落                  箇条書き (ネスト対応)

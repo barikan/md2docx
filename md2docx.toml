@@ -1,3 +1,4 @@
+# カスタマイズ例。既定値の一覧は README.md または mdd --help を参照。
 [fonts]
 body_ja    = "Meiryo UI"
 body_en    = "Consolas"
@@ -72,6 +73,12 @@ figure = false
 [numbering]
 figure_format = "sequential"
 table_format = "sequential"
+
+[line_numbers]
+enabled = false
+count_by = 1
+start = 1
+restart = "newPage"
 
 [heading]
 # heading_shift = true にすると:
