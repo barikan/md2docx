@@ -157,9 +157,7 @@ impl<'a> ConvertContext<'a> {
     fn convert_title(&self, docx: Docx, content: &[Inline]) -> Docx {
         let plain_text: String = content.iter().map(|i| i.to_plain_text()).collect();
         let run = Run::new().add_text(plain_text.trim());
-        let para = Paragraph::new()
-            .add_run(run)
-            .style(styles::TITLE_STYLE_ID);
+        let para = Paragraph::new().add_run(run).style(styles::TITLE_STYLE_ID);
         docx.add_paragraph(para)
     }
 
@@ -579,16 +577,26 @@ impl<'a> ConvertContext<'a> {
 
     fn convert_code_block(&self, docx: Docx, lang: Option<&str>, code: &str) -> Docx {
         let _ = lang;
-        // コードブロックはそのまま等幅フォントで表示
+        // コードブロックは設定されたフォントで表示
         let fonts = RunFonts::new()
-            .ascii("Courier New")
-            .hi_ansi("Courier New")
-            .east_asia("ＭＳ ゴシック")
-            .cs("Courier New");
+            .ascii(&self.config.fonts.code_en)
+            .hi_ansi(&self.config.fonts.code_en)
+            .east_asia(&self.config.fonts.code_ja)
+            .cs(&self.config.fonts.code_en);
 
         let mut d = docx;
         let use_border = self.config.code_block.border;
-        let lines: Vec<&str> = code.lines().collect();
+        let margins = &self.config.code_block;
+        let mut lines: Vec<&str> = code.lines().collect();
+        // Wordの表セルには少なくとも一つの段落が必要。
+        if use_border && lines.is_empty() {
+            lines.push("");
+        }
+        let width = (i64::from(body_width_twip(&self.config.page))
+            - i64::from(margins.margin_left)
+            - i64::from(margins.margin_right))
+        .max(1) as usize;
+        let mut cell = TableCell::new().width(width, WidthType::Dxa);
         let n = lines.len();
         for (i, line) in lines.iter().enumerate() {
             let run = Run::new()
@@ -596,13 +604,54 @@ impl<'a> ConvertContext<'a> {
                 .size(styles::pt_to_half_point(9.0))
                 .fonts(fonts.clone());
 
-            let mut para = Paragraph::new().add_run(run);
+            // 上下の余白は各行ではなくブロック全体の前後に適用する。
+            let spacing = LineSpacing::new()
+                .before(if !use_border && i == 0 {
+                    margins.margin_top
+                } else {
+                    0
+                })
+                .after(if !use_border && i == n - 1 {
+                    margins.margin_bottom
+                } else {
+                    0
+                });
+            let para = Paragraph::new()
+                .add_run(run)
+                .indent(
+                    Some(if use_border { 0 } else { margins.margin_left }),
+                    None,
+                    Some(if use_border { 0 } else { margins.margin_right }),
+                    None,
+                )
+                .line_spacing(spacing);
             if use_border {
-                para.property = para
-                    .property
-                    .set_borders(code_block_borders(i == 0, i == n - 1));
+                cell = cell.add_paragraph(para);
+            } else {
+                d = d.add_paragraph(para);
             }
-            d = d.add_paragraph(para);
+        }
+        if use_border {
+            if margins.margin_top > 0 {
+                d = d.add_paragraph(code_block_spacer(margins.margin_top).keep_next(true));
+            }
+            let table = Table::new(vec![TableRow::new(vec![cell])])
+                .align(TableAlignmentType::Left)
+                .indent(margins.margin_left)
+                .layout(TableLayoutType::Fixed)
+                .width(width, WidthType::Dxa)
+                .set_grid(vec![width])
+                .margins(TableCellMargins::new().margin(
+                    TABLE_CELL_PADDING_TWIP,
+                    TABLE_CELL_PADDING_TWIP,
+                    TABLE_CELL_PADDING_TWIP,
+                    TABLE_CELL_PADDING_TWIP,
+                ))
+                .set_borders(code_block_borders());
+            d = d.add_table(table);
+            if margins.margin_bottom > 0 {
+                d = d.add_paragraph(code_block_spacer(margins.margin_bottom));
+            }
         }
         d
     }
@@ -792,30 +841,167 @@ fn is_japanese_char(c: char) -> bool {
     )
 }
 
-/// コードブロック用の段落罫線を生成する。
-/// 複数行のコードブロック全体を一つの枠で囲むため、先頭/末尾で設定を変える。
-/// - 先頭行: 上・左・右の罫線 ＋ Between（次行との間を繋ぐ）
-/// - 中間行: 左・右の罫線 ＋ Between
-/// - 末尾行: 下・左・右の罫線（Between なし）
-/// - 1行のみ: 上下左右すべて
-fn code_block_borders(is_first: bool, is_last: bool) -> ParagraphBorders {
-    let make = |pos| ParagraphBorder::new(pos).size(4).space(4);
-    let mut pb = ParagraphBorders::with_empty();
-    pb = pb.set(make(ParagraphBorderPosition::Left));
-    pb = pb.set(make(ParagraphBorderPosition::Right));
-    if is_first {
-        pb = pb.set(make(ParagraphBorderPosition::Top));
-    }
-    if is_last {
-        pb = pb.set(make(ParagraphBorderPosition::Bottom));
-    }
-    pb
+/// 表の外側に指定した高さの空白を設ける。段落の既定行高は使用しない。
+fn code_block_spacer(height: u32) -> Paragraph {
+    Paragraph::new()
+        .add_run(Run::new().size(2))
+        .snap_to_grid(false)
+        .line_spacing(
+            LineSpacing::new()
+                .before(0)
+                .after(0)
+                .line_rule(LineSpacingType::Exact)
+                .line(height.min(i32::MAX as u32) as i32),
+        )
+}
+
+/// コードブロック全体を囲む1×1の表の外枠（0.5pt）。
+fn code_block_borders() -> TableBorders {
+    let make = |pos| TableBorder::new(pos).size(4);
+    TableBorders::with_empty()
+        .set(make(TableBorderPosition::Top))
+        .set(make(TableBorderPosition::Bottom))
+        .set(make(TableBorderPosition::Left))
+        .set(make(TableBorderPosition::Right))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use docx_rs::{DocumentChild, HyperlinkData, ParagraphChild, RunChild};
+
+    #[test]
+    fn applies_code_block_fonts_and_margins_with_or_without_borders() {
+        let mut config: Config = toml::from_str(
+            r#"
+            [fonts]
+            code_ja = "BIZ UDゴシック"
+            code_en = "Consolas"
+            [code_block]
+            margin_top = 240
+            margin_bottom = 120
+            margin_right = 360
+            margin_left = 420
+            "#,
+        )
+        .unwrap();
+
+        for border in [false, true] {
+            config.code_block.border = border;
+            for (markdown, expected_spacing) in [
+                (
+                    "```rust\n先頭\n\n  last\n```\n",
+                    vec![(240, 0), (0, 0), (0, 120)],
+                ),
+                ("    single\n", vec![(240, 120)]),
+                ("```\n```\n", if border { vec![(240, 120)] } else { vec![] }),
+            ] {
+                let blocks = crate::parser::parse_markdown(markdown, false).unwrap();
+                let docx = convert_to_docx(&blocks, &config, Path::new(".")).unwrap();
+                let paragraphs: Vec<&Paragraph> = if border {
+                    assert_eq!(docx.document.children.len(), 3);
+                    for (index, height) in [(0, 240), (2, 120)] {
+                        let DocumentChild::Paragraph(spacer) = &docx.document.children[index]
+                        else {
+                            panic!("expected outer spacer");
+                        };
+                        let xml = String::from_utf8(spacer.build()).unwrap();
+                        assert!(xml.contains(&format!(r#"w:line="{height}""#)));
+                        assert!(xml.contains(r#"w:lineRule="exact""#));
+                        assert!(xml.contains(r#"w:before="0""#));
+                        assert!(xml.contains(r#"w:after="0""#));
+                    }
+                    let DocumentChild::Table(table) = &docx.document.children[1] else {
+                        panic!("expected code table");
+                    };
+                    assert_eq!(table.rows.len(), 1);
+                    let TableChild::TableRow(row) = &table.rows[0];
+                    assert_eq!(row.cells.len(), 1);
+                    let TableRowChild::TableCell(cell) = &row.cells[0];
+                    let xml = String::from_utf8(table.build()).unwrap();
+                    assert!(xml.contains("<w:tblBorders>"));
+                    for side in ["top", "bottom", "left", "right"] {
+                        assert!(xml.contains(&format!(r#"<w:{side} w:val="single" w:sz="4""#)));
+                    }
+                    assert!(xml.contains(r#"<w:tblLayout w:type="fixed" />"#));
+                    let width = body_width_twip(&config.page) - 420 - 360;
+                    assert!(xml.contains(r#"<w:tblInd w:w="420" w:type="dxa" />"#));
+                    assert!(xml.contains(&format!(r#"<w:gridCol w:w="{width}""#)));
+                    assert!(xml.contains(&format!(r#"<w:tcW w:w="{width}""#)));
+                    assert!(xml.contains(&format!(r#"<w:tblW w:w="{width}" w:type="dxa" />"#)));
+                    assert!(!xml.contains("SEQ Table"));
+                    cell.children
+                        .iter()
+                        .map(|child| match child {
+                            TableCellContent::Paragraph(p) => p,
+                            other => panic!("unexpected cell content: {other:?}"),
+                        })
+                        .collect()
+                } else {
+                    docx.document
+                        .children
+                        .iter()
+                        .map(|child| match child {
+                            DocumentChild::Paragraph(p) => p.as_ref(),
+                            other => panic!("unexpected document content: {other:?}"),
+                        })
+                        .collect()
+                };
+                assert_eq!(paragraphs.len(), expected_spacing.len());
+                for (p, (before, after)) in paragraphs.into_iter().zip(expected_spacing) {
+                    let (before, after) = if border { (0, 0) } else { (before, after) };
+                    let xml = String::from_utf8(p.build()).unwrap();
+                    for attribute in ["ascii", "hAnsi", "cs"] {
+                        assert!(xml.contains(&format!(r#"w:{attribute}="Consolas""#)));
+                    }
+                    assert!(xml.contains(r#"w:eastAsia="BIZ UDゴシック""#));
+                    assert!(xml.contains(r#"<w:sz w:val="18" />"#));
+                    assert!(xml.contains(&format!(r#"w:before="{before}""#)));
+                    assert!(xml.contains(&format!(r#"w:after="{after}""#)));
+                    assert_eq!(
+                        p.property.indent.as_ref().unwrap().end,
+                        Some(if border { 0 } else { 360 })
+                    );
+                    assert_eq!(
+                        p.property.indent.as_ref().unwrap().start,
+                        Some(if border { 0 } else { 420 })
+                    );
+                    assert!(!xml.contains("<w:pBdr>"));
+                }
+                let xml = String::from_utf8(docx.document.build()).unwrap();
+                if markdown.contains("last") {
+                    assert!(xml.contains(r#"<w:t xml:space="preserve">  last</w:t>"#));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bordered_code_adds_spacers_only_for_nonzero_outer_margins() {
+        let mut config = Config::default();
+        config.code_block.border = true;
+        config.page.width = 8_000;
+        config.page.margin_left = 1_000;
+        config.page.margin_right = 1_000;
+        config.code_block.margin_left = 300;
+        config.code_block.margin_right = 500;
+        let blocks = crate::parser::parse_markdown("```\ncode\n```", false).unwrap();
+        for (top, bottom) in [(0, 0), (100, 0), (0, 200)] {
+            config.code_block.margin_top = top;
+            config.code_block.margin_bottom = bottom;
+            let docx = convert_to_docx(&blocks, &config, Path::new(".")).unwrap();
+            assert_eq!(
+                docx.document.children.len(),
+                1 + usize::from(top > 0) + usize::from(bottom > 0)
+            );
+            let DocumentChild::Table(table) = &docx.document.children[usize::from(top > 0)] else {
+                panic!("expected table between outer spacers");
+            };
+            let xml = String::from_utf8(table.build()).unwrap();
+            assert!(xml.contains(r#"<w:tblW w:w="5200" w:type="dxa" />"#));
+            assert!(xml.contains(r#"<w:tblInd w:w="300" w:type="dxa" />"#));
+        }
+    }
 
     #[test]
     fn applies_markdown_bold_and_italic_to_word_runs() {

@@ -34,6 +34,8 @@ use crate::config::Config;
   body_en    = \"Century\"       # 本文の英語フォント
   heading_ja = \"游ゴシック\"    # 見出しの日本語フォント
   heading_en = \"Century\"       # 見出しの英語フォント
+  code_ja = \"ＭＳ ゴシック\"   # コードブロックの日本語フォント
+  code_en = \"Courier New\"     # コードブロックの英語フォント
 
   [sizes]                       # 単位: pt
   body     = 10.5               # 本文
@@ -90,7 +92,11 @@ use crate::config::Config;
   restart  = \"newPage\"          # 採番リセット: newPage / newSection / continuous
 
   [code_block]
-  border = false                # コードブロックを罫線で囲む（true / false）
+  border = false                # コードブロックを1行1列の表で囲む（true / false）
+  margin_top = 0                # ブロックの上余白 (twip)
+  margin_bottom = 0             # ブロックの下余白 (twip)
+  margin_right = 0              # 全行の右余白 (twip)
+  margin_left = 0               # 全行の左余白 (twip)
 
   [equal]
   enabled = false               # ==text== による文字装飾を有効にする
@@ -158,9 +164,7 @@ fn main() -> Result<()> {
     if config.line_numbers.enabled {
         let ln_xml = format!(
             r#"<w:lnNumType w:countBy="{}" w:start="{}" w:restart="{}"/>"#,
-            config.line_numbers.count_by,
-            config.line_numbers.start,
-            config.line_numbers.restart,
+            config.line_numbers.count_by, config.line_numbers.start, config.line_numbers.restart,
         );
         let doc_str = String::from_utf8(std::mem::take(&mut xml_docx.document))
             .context("document.xml が有効な UTF-8 ではありません")?;

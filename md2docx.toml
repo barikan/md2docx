@@ -1,8 +1,18 @@
 [fonts]
-body_ja = "游明朝"
-body_en = "Century"
-heading_ja = "游ゴシック"
-heading_en = "Century"
+body_ja    = "Meiryo UI"
+body_en    = "Consolas"
+heading_ja = "Meiryo UI"
+heading_en = "Consolas"
+code_ja = "Consolas"
+code_en = "Consolas"
+
+[code_block]
+border = true
+# 余白の単位: twip (1 twip = 1/20 pt)
+margin_top = 120
+margin_bottom = 120
+margin_right = 0
+margin_left = 360
 
 [sizes]
 body = 10.5

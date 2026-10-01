@@ -46,6 +46,10 @@ pub struct FontConfig {
     pub heading_ja: String,
     #[serde(default = "default_heading_en")]
     pub heading_en: String,
+    #[serde(default = "default_code_ja")]
+    pub code_ja: String,
+    #[serde(default = "default_code_en")]
+    pub code_en: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,6 +144,12 @@ fn default_heading_en() -> String {
 }
 fn default_body_size() -> f64 {
     10.5
+}
+fn default_code_ja() -> String {
+    "ＭＳ ゴシック".to_string()
+}
+fn default_code_en() -> String {
+    "Courier New".to_string()
 }
 fn default_table_body_size() -> f64 {
     9.5
@@ -281,6 +291,8 @@ impl Default for FontConfig {
             body_en: default_body_en(),
             heading_ja: default_heading_ja(),
             heading_en: default_heading_en(),
+            code_ja: default_code_ja(),
+            code_en: default_code_en(),
         }
     }
 }
@@ -388,17 +400,20 @@ impl Default for LineNumberConfig {
 }
 
 /// コードブロック設定
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct CodeBlockConfig {
-    /// コードブロックを罫線で囲む（デフォルト: false）
+    /// コードブロックを1行1列の罫線付き表で囲む（デフォルト: false）
     #[serde(default)]
     pub border: bool,
-}
-
-impl Default for CodeBlockConfig {
-    fn default() -> Self {
-        Self { border: false }
-    }
+    /// ブロックの外側の余白（単位: twip）。罫線ありの場合は表の外側に適用。
+    #[serde(default)]
+    pub margin_top: u32,
+    #[serde(default)]
+    pub margin_bottom: u32,
+    #[serde(default)]
+    pub margin_right: i32,
+    #[serde(default)]
+    pub margin_left: i32,
 }
 
 /// `==text==` による文字装飾設定
@@ -452,6 +467,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn code_block_options_are_optional() {
+        for source in [
+            "",
+            "[fonts]\nbody_en = 'Arial'",
+            "[code_block]\nborder = true",
+        ] {
+            let config: Config = toml::from_str(source).unwrap();
+            assert_eq!(config.fonts.code_ja, "ＭＳ ゴシック");
+            assert_eq!(config.fonts.code_en, "Courier New");
+            assert_eq!(config.code_block.margin_top, 0);
+            assert_eq!(config.code_block.margin_bottom, 0);
+            assert_eq!(config.code_block.margin_right, 0);
+            assert_eq!(config.code_block.margin_left, 0);
+            assert_eq!(config.code_block.border, source.contains("border = true"));
+        }
+        let partial: Config = toml::from_str("[code_block]\nmargin_top = 240").unwrap();
+        assert_eq!(partial.code_block.margin_top, 240);
+        assert_eq!(partial.code_block.margin_bottom, 0);
+        assert!(!partial.code_block.border);
+        let defaults = Config::default();
+        assert_eq!(defaults.fonts.code_ja, "ＭＳ ゴシック");
+        assert_eq!(defaults.fonts.code_en, "Courier New");
+        assert_eq!(defaults.code_block.margin_top, 0);
+        assert_eq!(defaults.code_block.margin_bottom, 0);
+        assert_eq!(defaults.code_block.margin_right, 0);
+        assert_eq!(defaults.code_block.margin_left, 0);
+    }
+
+    #[test]
     fn reads_equal_markup_options_and_allows_optional_styles() {
         let configured: Config = toml::from_str(
             r##"
@@ -464,7 +508,10 @@ mod tests {
         .unwrap();
         assert!(configured.equal.enabled);
         assert_eq!(configured.equal.font_size, Some(18.0));
-        assert_eq!(configured.equal.background_color.as_deref(), Some("#FFFF00"));
+        assert_eq!(
+            configured.equal.background_color.as_deref(),
+            Some("#FFFF00")
+        );
 
         let minimal: Config = toml::from_str("[equal]\nenabled = true").unwrap();
         assert!(minimal.equal.enabled);
