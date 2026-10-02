@@ -35,6 +35,7 @@ const HEADING1_BEFORE_PT: f64 = 24.0;
 const HEADING1_AFTER_PT: f64 = 12.0;
 const HEADING2_BEFORE_PT: f64 = 18.0;
 const HEADING2_AFTER_PT: f64 = 8.0;
+const HEADING3_BEFORE_PT: f64 = 6.0;
 
 /// sample.docx のスタイル定義を Docx に適用する
 ///
@@ -142,6 +143,7 @@ pub fn setup_document_styles(docx: Docx, config: &Config) -> Docx {
         .size(pt_to_half_point(config.sizes.heading3)) // 11pt = sz 22
         .bold()
         .fonts(heading3_fonts)
+        .line_spacing(LineSpacing::new().before(pt_to_twip(HEADING3_BEFORE_PT) as u32))
         .outline_lvl(2);
     heading3_style.paragraph_property = heading3_style
         .paragraph_property
