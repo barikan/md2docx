@@ -410,7 +410,22 @@ pub fn setup_document_styles(docx: Docx, config: &Config) -> Docx {
         .name("Bullet List")
         .based_on("Normal");
 
-    docx.add_style(normal_style)
+    if !config.heading.numbering {
+        for style in [
+            &mut heading1_style,
+            &mut heading2_style,
+            &mut heading3_style,
+            &mut heading4_style,
+            &mut heading5_style,
+        ] {
+            style.paragraph_property.numbering_property = None;
+            // 番号用のぶら下げインデントを解除する。
+            style.paragraph_property.indent = None;
+        }
+    }
+
+    let docx = docx
+        .add_style(normal_style)
         .add_style(title_style)
         .add_style(body_text_style)
         .add_style(heading1_style)
@@ -419,10 +434,15 @@ pub fn setup_document_styles(docx: Docx, config: &Config) -> Docx {
         .add_style(heading4_style)
         .add_style(heading5_style)
         .add_style(bullet_style)
-        .add_abstract_numbering(abstract_numbering)
         .add_abstract_numbering(bullet_abstract)
-        .add_numbering(numbering)
-        .add_numbering(bullet_numbering)
+        .add_numbering(bullet_numbering);
+
+    if config.heading.numbering {
+        docx.add_abstract_numbering(abstract_numbering)
+            .add_numbering(numbering)
+    } else {
+        docx
+    }
 }
 
 #[cfg(test)]

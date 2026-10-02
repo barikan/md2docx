@@ -70,12 +70,16 @@ mdd --helpで詳細を確認できる。
 | --------------- | --------------------------------------------------------------------------------- |
 | `-o, --output`  | 出力先を指定する。省略すると入力ファイル名の拡張子を `.docx` に変えたものになる。 |
 | `-c, --config`  | 設定ファイル (TOML) を指定する。省略するとデフォルト設定が使われる。              |
+| `--no-heading-numbering` | 見出しの自動採番を無効にする。設定ファイルより優先される。 |
 | `-h, --help`    | ヘルプを表示する。`--help` なら設定ファイルの書式も出る。                         |
 | `-V, --version` | バージョンを確認する。                                                            |
 
 ```sh
 # 基本的な変換（document.docxが生成される）
 mdd document.md
+
+# 見出し番号なしで変換
+mdd document.md --no-heading-numbering
 
 # 出力先を指定
 mdd document.md -o output.docx
@@ -171,6 +175,7 @@ start = 1
 restart = "newPage"
 
 [heading]
+numbering = true
 heading_shift = false
 title_size = 18.0
 
@@ -197,6 +202,8 @@ captionsセクションでは表名・図名（番号を含むキャプション
 numberingセクションで図番号・表番号の採番形式を指定する。`"sequential"`は連番（図1, 図2, 図3…）、`"chapter"`は章番号付き（図1.1, 図1.2, 図2.1…）になる。章番号はWordの見出し1の番号を基準とし、見出し1が変わるとリセットされる。見出し2以下の変化ではリセットされない。
 
 line_numbersセクションでは文書の行番号を設定する。`enabled = true`で有効になり、`count_by`は何行ごとに番号を表示するか、`start`は開始番号を指定する。`restart`は`"newPage"`（ページごと）、`"newSection"`（セクションごと）、`"continuous"`（文書全体で連続）から選ぶ。
+
+headingセクションの`numbering = false`で見出しの自動採番を無効にする。省略時は`true`。Markdownに直接書かれた番号はそのまま残す。図・表の番号には影響せず、章番号付きの場合も見出しを基準に採番する。
 
 headingセクションの`heading_shift = true`で、Markdownの`#`を番号なし・中央揃えの表題、`##`を見出し1、`###`を見出し2として扱う。`title_size`はこの表題の文字サイズ（pt）で、既定値は18.0。シフト時の章番号は`##`を基準とする。
 

@@ -81,6 +81,7 @@ start = 1
 restart = "newPage"
 
 [heading]
+numbering = true
 # heading_shift = true にすると:
 #   #    -> Word 標準スタイル「表題」（中央揃え）
 #   ##   -> 見出し1

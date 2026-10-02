@@ -109,6 +109,7 @@ use crate::config::Config;
   margin_left = 0               # ブロックの左外側余白 (twip)
 
   [heading]
+  numbering = true            # 見出しを自動採番する
   heading_shift = false        # # を表題、## を見出し1、### を見出し2…にする
   title_size = 18.0            # 表題の文字サイズ (pt、heading_shift = true 時)
 
@@ -134,17 +135,25 @@ struct Cli {
     /// 設定ファイルパス (TOML) [省略時: デフォルト設定]
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
+
+    /// 見出しの自動採番を無効にする（設定ファイルより優先）
+    #[arg(long)]
+    no_heading_numbering: bool,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // 設定ファイルの読み込み
-    let config = match &cli.config {
+    let mut config = match &cli.config {
         Some(path) => Config::load(path)
             .with_context(|| format!("設定ファイルの読み込みに失敗: {}", path.display()))?,
         None => Config::default(),
     };
+
+    if cli.no_heading_numbering {
+        config.heading.numbering = false;
+    }
 
     // 入力ファイルの読み込み
     let input_path = &cli.input;

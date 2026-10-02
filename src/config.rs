@@ -468,12 +468,19 @@ pub struct EqualConfig {
 /// 見出し関連設定
 #[derive(Debug, Deserialize)]
 pub struct HeadingConfig {
+    /// 見出しを自動採番する（デフォルト: true）
+    #[serde(default = "default_heading_numbering")]
+    pub numbering: bool,
     /// # → 表題、## → 見出し1、### → 見出し2 … とレベルをシフトする
     #[serde(default)]
     pub heading_shift: bool,
     /// 表題スタイルのフォントサイズ (pt)  ※ heading_shift = true 時に使用
     #[serde(default = "default_title_size")]
     pub title_size: f64,
+}
+
+fn default_heading_numbering() -> bool {
+    true
 }
 
 fn default_title_size() -> f64 {
@@ -483,6 +490,7 @@ fn default_title_size() -> f64 {
 impl Default for HeadingConfig {
     fn default() -> Self {
         Self {
+            numbering: default_heading_numbering(),
             heading_shift: false,
             title_size: default_title_size(),
         }
@@ -500,6 +508,20 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn heading_numbering_defaults_to_enabled() {
+        assert!(Config::default().heading.numbering);
+        for source in ["", "[heading]", "[heading]\nnumbering = true"] {
+            assert!(toml::from_str::<Config>(source).unwrap().heading.numbering);
+        }
+        assert!(
+            !toml::from_str::<Config>("[heading]\nnumbering = false")
+                .unwrap()
+                .heading
+                .numbering
+        );
+    }
 
     #[test]
     fn table_margins_default_to_zero() {

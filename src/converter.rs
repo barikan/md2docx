@@ -131,9 +131,12 @@ impl<'a> ConvertContext<'a> {
 
         // テキストから既存の番号部分を除去
         let plain_text: String = content.iter().map(|i| i.to_plain_text()).collect();
-        let display_text = self
-            .heading_mgr
-            .strip_number(effective_level, plain_text.trim());
+        let display_text = if self.config.heading.numbering {
+            self.heading_mgr
+                .strip_number(effective_level, plain_text.trim())
+        } else {
+            plain_text.trim().to_string()
+        };
 
         // Run はテキストのみ（フォント・サイズ・boldはスタイルが担当）
         let run = Run::new().add_text(&display_text);
@@ -142,14 +145,16 @@ impl<'a> ConvertContext<'a> {
         let style_id = effective_level.to_string();
 
         // 段落にスタイルと numbering を適用
-        let para = Paragraph::new()
+        let mut para = Paragraph::new()
             .add_run(run)
             .style(&style_id)
-            .numbering(
+            .keep_next(true);
+        if self.config.heading.numbering {
+            para = para.numbering(
                 NumberingId::new(styles::HEADING_NUM_ID),
                 IndentLevel::new((effective_level as usize).saturating_sub(1)),
-            )
-            .keep_next(true);
+            );
+        }
 
         docx.add_paragraph(para)
     }
@@ -910,6 +915,49 @@ fn code_block_borders() -> TableBorders {
 mod tests {
     use super::*;
     use docx_rs::{DocumentChild, HyperlinkData, ParagraphChild, RunChild};
+
+    #[test]
+    fn heading_numbering_can_be_disabled_with_or_without_shift() {
+        for shift in [false, true] {
+            for numbering in [false, true] {
+                let mut config = Config::default();
+                config.heading.heading_shift = shift;
+                config.heading.numbering = numbering;
+                config.numbering.table_format = "chapter".into();
+                let mut markdown = String::new();
+                if shift {
+                    markdown.push_str("# Title\n\n");
+                }
+                for level in 1..=5 {
+                    markdown.push_str(&format!(
+                        "{} {} Heading{}\n\n",
+                        "#".repeat(level + usize::from(shift)),
+                        ["8", "8.1", "8.1.1", "(1)", "①"][level - 1],
+                        level
+                    ));
+                }
+                markdown.push_str("| A |\n|---|\n| B |\n");
+                let blocks = crate::parser::parse_markdown(&markdown, false).unwrap();
+                let built = convert_to_docx(&blocks, &config, Path::new("."))
+                    .unwrap()
+                    .build();
+                let document = String::from_utf8(built.document).unwrap();
+                let styles = String::from_utf8(built.styles).unwrap();
+                assert_eq!(document.contains("<w:numPr>"), numbering);
+                assert_eq!(styles.contains("<w:numPr>"), numbering);
+                for (level, prefix) in ["8", "8.1", "8.1.1", "(1)", "①"].iter().enumerate() {
+                    let text = if numbering {
+                        format!("Heading{}", level + 1)
+                    } else {
+                        format!("{prefix} Heading{}", level + 1)
+                    };
+                    assert!(document.contains(&format!(">{text}</w:t>")));
+                    assert!(document.contains(&format!("w:pStyle w:val=\"{}\"", level + 1)));
+                }
+                assert!(document.contains("表8.1"));
+            }
+        }
+    }
 
     #[test]
     fn applies_outer_table_margins_with_or_without_caption() {
